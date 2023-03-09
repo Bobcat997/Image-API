@@ -1,51 +1,34 @@
 from django.db import models
 from django.contrib.auth.models import User
-from django.core.files.storage import default_storage
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
-class Basic(models.Model):
+class Account(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
+    plan = models.ForeignKey("Plan", on_delete=models.CASCADE)
+
+    def __str__(self):
+        return f'{self.user.username} Plan: {self.plan.name}'
 
 
-class Premium(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+class Plan(models.Model):
+    name = models.CharField(max_length=45)
+    size = models.PositiveIntegerField(default=1)
 
-
-class Enterprise(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    link_expiration_time = models.IntegerField(default=300, validators=[MinValueValidator(300), MaxValueValidator(30000)])
+    def __str__(self):
+        return self.name
 
 
 class Image(models.Model):
-    uploaded_by = models.ForeignKey(User, on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='images/')
-    created_at = models.DateTimeField(auto_now_add=True)
-    basic = models.ForeignKey(Basic, on_delete=models.PROTECT, blank=True, null=True)
-    premium = models.ForeignKey(Premium, on_delete=models.PROTECT, blank=True, null=True)
-    enterprise = models.ForeignKey(Enterprise, on_delete=models.PROTECT, blank=True, null=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    image = models.ImageField(upload_to='images')
+    link_expiration_time = models.DateTimeField(blank=True, null=True)
+    expiration_seconds = models.IntegerField(validators=[MinValueValidator(300), MaxValueValidator(30000)], blank=True,
+                                             null=True)
 
-    @property
-    def thumbnail_200px(self):
-        if self.basic is not None or self.premium is not None or self.enterprise is not None:
-            return default_storage.url(self.image.name + '?height=200')
-        return None
 
-    @property
-    def thumbnail_400px(self):
-        if self.premium is not None or self.enterprise is not None:
-            return default_storage.url(self.image.name + '?height=400')
-        return None
+class Thumbnail(models.Model):
+    original = models.ForeignKey('Image', on_delete=models.CASCADE)
+    image = models.ImageField()
+    size = models.IntegerField(default=1)
 
-    @property
-    def original_image(self):
-        if self.enterprise is not None:
-            return default_storage.url(self.image.name)
-        return None
-
-    @property
-    def expiring_link(self):
-        if self.enterprise is not None:
-            expiration_time = self.enterprise.link_expiration_time
-            return default_storage.url(self.image.name + f'?expires_in={expiration_time}')
-        return None
